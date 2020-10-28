@@ -27,18 +27,18 @@ If you don't provide the required parameters, a help screen will be displayed:
 ```text
 Recursive Unzip
 
-The script will scan a folder recursively and retrieve all .zip files then:
+The script will scan a folder recursively and retrieve all .zip files then uncompress the archive in the same folder.
 
-   1. Uncompress the archive in the same folder
-   2. Remove the zip
+If you specify the `-delete` command line argument, the archive is then removed.
 
-Be careful, this script is destructive; will overwrite files during the unzip action and remove the archive afterward.
+Be careful, this script can be destructive: will overwrite files during the unzip action and remove the archive afterward.
 
 At the end, all .zip files are uncompressed and removed
 
-Usage: unzip [-help] [-force] [-folder <foldername>]
+Usage: unzip [-help] [-delete] [-force] [-folder <foldername>]
 
  -help      Show this screen
+ -delete    Delete the archive once uncompressed
  -force     Don't ask for confirmation, run the script
  -folder    Name of the folder to process
 ```

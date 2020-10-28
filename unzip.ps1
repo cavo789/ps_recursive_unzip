@@ -16,12 +16,17 @@
 
     Unzip files present in folder c:\temp, recursively; don't ask for confirmation
     powershell .\unzip.ps1 -folder c:\temp -force
+
+    Unzip files present in folder c:\temp, recursively; don't ask for confirmation and delete archives once uncompressed
+    powershell .\unzip.ps1 -folder c:\temp -force -delete
 #>
 param (
     # Source folder
     [string] $folder = "",
     # Show help screen
     [switch] $help = $false,
+    # Delete the archive once uncompressed
+    [switch] $delete = $false,
     # Don't ask for confirmation, run the script
     [switch] $force = $false
 )
@@ -35,21 +40,24 @@ begin {
     #>
     function showHelp {
 
-        Write-Host "`nThe script will scan a folder recursively and retrieve all .zip files then:"
+        Write-Host "`nThe script will scan a folder recursively and retrieve all .zip files then uncompress the archive in the same folder."
         Write-Host ""
-        Write-Host "   1. Uncompress the archive in the same folder"
-        Write-Host "   2. Remove the zip"
+        Write-Host "If you specify the `-delete` command line argument, the archive is then removed."
         Write-Host ""
         Write-Host "Be careful, this script is destructive; will overwrite files during the unzip action and remove the archive afterward" -ForegroundColor White -BackgroundColor Red
         Write-Host ""
         Write-Host "At the end, all .zip files are uncompressed and removed"
 
         Write-Host $(
-            "`nUsage: unzip [-help] [-force] [-folder <foldername>]`n"
+            "`nUsage: unzip [-help] [-delete] [-force] [-folder <foldername>]`n"
         ) -ForegroundColor Cyan
 
         Write-Host $(
             " -help      Show this screen"
+        )
+
+        Write-Host $(
+            " -delete    Delete the archive once uncompressed successfully"
         )
 
         Write-Host $(
@@ -102,7 +110,7 @@ begin {
 
         $count = $zipFiles.count
 
-        Write-Host "`n$count archives were found in the folder $folder" -ForegroundColor Green
+        Write-Host "`n$count archives were found in the folder $folder`n" -ForegroundColor Green
 
         if ($count -eq 0) {
             Write-Host "`nNo zip files found in folder $folder`n"
@@ -125,7 +133,7 @@ begin {
 
             Write-Host (consoleAddLeadingZeros($progress)) -NoNewline
             Write-Host " /" (consoleAddLeadingZeros($count)) -NoNewline
-            Write-Host " - Unzip $($zipFile.Fullname)"
+            Write-Host " - Unzip $($zipFile.Fullname)" -ForegroundColor Yellow -NoNewline
 
             $location = $objShell.NameSpace($path)
 
@@ -140,7 +148,12 @@ begin {
             $location.Copyhere($zipFolder.items(), 1040)
 
             # And now remove the zip file
-            Remove-Item $zipFile.Fullname
+            if ($delete) {
+                Write-Host " (archive delete)" -ForegroundColor darkGray
+                Remove-Item $zipFile.Fullname
+            } else {
+                Write-Host ""
+            }
 
             Pop-Location
         }
