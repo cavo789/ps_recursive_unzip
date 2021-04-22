@@ -14,6 +14,9 @@
     Unzip files present in folder c:\temp, recursively
     powershell .\unzip.ps1 -folder c:\temp
 
+    Unzip files present in folder c:\temp, recursively, keep tracking into a log file (append mode)
+    powershell .\unzip.ps1 -folder c:\temp -log c:\temp\unzip.log
+
     Unzip files present in folder c:\temp, recursively; don't ask for confirmation
     powershell .\unzip.ps1 -folder c:\temp -force
 
@@ -23,6 +26,8 @@
 param (
     # Source folder
     [string] $folder = "",
+    # Logfile name for a tracking (f.i. c:\temp\unzip.log)
+    [string] $logFile = "",
     # Show help screen
     [switch] $help = $false,
     # Delete the archive once uncompressed
@@ -49,7 +54,7 @@ begin {
         Write-Host "At the end, all .zip files are uncompressed and removed"
 
         Write-Host $(
-            "`nUsage: unzip [-help] [-delete] [-force] [-folder <foldername>]`n"
+            "`nUsage: unzip [-help] [-delete] [-force] [-folder <foldername>] [-log <filename>]`n"
         ) -ForegroundColor Cyan
 
         Write-Host $(
@@ -65,7 +70,11 @@ begin {
         )
 
         Write-Host $(
-            " -folder    Name of the folder to process"
+            " -folder    Name of the folder to process (f.i. ""-folder c:\backups"")"
+        )
+
+        Write-Host $(
+            " -log       Name of a logfile where to keep track of which files were processed (f.i. ""-log c:\unzip.log"")"
         )
 
         exit
@@ -78,12 +87,15 @@ begin {
         void
     #>
     function validate {
-        $Folder = $Folder.Trim()
+        $folder = $folder.Trim()
 
-        if (-not (Test-Path $Folder)) {
-            Write-Host "ERROR - The target folder ""$Folder"" didn't exists" -ForegroundColor White -BackgroundColor Red
+        if (-not (Test-Path $folder)) {
+            Write-Host "ERROR - The target folder ""$folder"" didn't exists" -ForegroundColor White -BackgroundColor Red
             exit -1
         }
+
+
+        $logFile = $logFile.Trim()
     }
 
     <#
@@ -91,7 +103,16 @@ begin {
         Add leading zeros, return "010" when $counter is set to 10
     #>
     function global:consoleAddLeadingZeros([int] $counter) {
-        return "{0:000}" -f $counter
+        return "{0:00000}" -f $counter
+    }
+
+    <#
+    .SYNOPSIS
+        Write a line in a log file, append mode
+    #>
+    function LogWrite([string] $message, [string] $flag="INFO") {
+        $dateStamp = (Get-Date).toString("yyyy/MM/dd HH:mm:ss")
+        Add-content $Logfile -value "$dateStamp $flag::$message"
     }
 
     <#
@@ -101,9 +122,11 @@ begin {
         void
     #>
     function unzipArchives {
+        LogWrite "START Unzip, process folder $($folder)"
+        LogWrite "Please note: password protected file will be skipped and won't be uncompressed" "WARN"
 
         # Get all zips; recursively; as an array. Keep three infos, folder name, full folder name and full filename
-        $zipFiles = Get-ChildItem "*.zip" -Path $Folder -Recurse -File | Select Name, `
+        $zipFiles = Get-ChildItem "*.zip" -Path $folder -Recurse -File | Select Name, `
             @{ n = 'Folder'; e = { Convert-Path $_.PSParentPath } }, `
             @{ n = 'Foldername'; e = { ($_.PSPath -split '[\\]')[-2] } } ,
             @{ n = 'Fullname'; e = { Convert-Path $_.PSPath } }
@@ -113,6 +136,7 @@ begin {
         Write-Host "`n$count archives were found in the folder $folder`n" -ForegroundColor Green
 
         if ($count -eq 0) {
+            LogWrite "No zip files found"
             Write-Host "`nNo zip files found in folder $folder`n"
             exit
         }
@@ -124,16 +148,16 @@ begin {
 
         # Process zips, one by one
         foreach ($zipFile in $zipFiles) {
-
             $progress++
 
             # Get the folder name where the ZIP is stored
             $path = $zipFile.Folder
             Push-Location $path
 
-            Write-Host (consoleAddLeadingZeros($progress)) -NoNewline
-            Write-Host " /" (consoleAddLeadingZeros($count)) -NoNewline
-            Write-Host " - Unzip $($zipFile.Fullname)" -ForegroundColor Yellow -NoNewline
+            $logMessage = "$(consoleAddLeadingZeros($progress)) / $(consoleAddLeadingZeros($count)) - Unzip $($zipFile.Fullname)"
+            LogWrite $logMessage
+
+            Write-Host $logMessage -ForegroundColor Yellow -NoNewline
 
             $location = $objShell.NameSpace($path)
 
@@ -144,8 +168,23 @@ begin {
 
             $zipFolder = $objShell.NameSpace($zipFile.Fullname)
 
-            # 1040 - No msgboxes to the user - http://msdn.microsoft.com/en-us/library/bb787866%28VS.85%29.aspx
-            $location.Copyhere($zipFolder.items(), 1040)
+            $FOF_DEFAULT = 0           # Default. No options specified.
+            $FOF_SILENT = 4            # Do not display a progress dialog box.
+            $FOF_RENAMEONCOLLISION = 8 # Rename the target file if a file exists at the target location with the same name.
+            $FOF_NOCONFIRMATION = 16   # Click "Yes to All" in any dialog box displayed.
+            $FOF_ALLOWUNDO = 64        # Preserve undo information, if possible.
+            $FOF_FILESONLY = 128       # Perform the operation only if a wildcard file name (*.*) is specified.
+            $FOF_SIMPLEPROGRESS = 256  # Display a progress dialog box but do not show the file names.
+            $FOF_NOCONFIRMMKDIR = 512  # Do not confirm the creation of a new directory if the operation requires one to be created.
+            $FOF_NOERRORUI = 1024      # Do not display a user interface if an error occurs.
+            $FOF_NORECURSION = 4096    # Disable recursion.
+            $FOF_SELECTFILES = 9182    # Do not copy connected files as a group. Only copy the specified files.
+
+            # Using FOF_NOERRORUI, if the ZIP file is password protected, no error will be throwed and the file will be skipped
+
+            #! Note: it seems impossible to detect if an error has occured or not; see https://stackoverflow.com/a/8275253
+            #! This said, it's impossible to make sure the unzip was successfull
+            $location.Copyhere($zipFolder.items(), $FOF_SILENT + $FOF_NOCONFIRMATION + $FOF_NOCONFIRMMKDIR + $FOF_NOERRORUI)
 
             # And now remove the zip file
             if ($delete) {
@@ -158,7 +197,9 @@ begin {
             Pop-Location
         }
 
-        Write-Host "`nAll archives have been extracted"
+        LogWrite "END Unzip, all archives in folder $($folder) have been processed"
+
+        Write-Host "`nAll archives have been processed"
     }
 
     <#
@@ -204,5 +245,8 @@ begin {
     if ($continue) {
         unzipArchives
     }
+
+    Write-Host "------------------"
+    Get-Content -Path $logFile
     #endregion Entry point
 }

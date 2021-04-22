@@ -9,18 +9,19 @@
 * [Table of Contents](#table-of-contents)
 * [Install](#install)
 * [Usage](#usage)
+  * [Password protected file](#password-protected-file)
   * [Tips](#tips)
 * [License](#license)
 
 ## Install
 
-Clic on the green "Code" button, here top left. Download the zip.
+Click on the green "Code" button, here top left. Download the zip.
 
 You just need the `unzip.ps1` script. The `unzip.bat` file is provided as an example on how to call the script with parameters.
 
 ## Usage
 
-Start a DOS prompt and execute the script by typing `powershell .\unzip.ps1` on the prompt. 
+Start a DOS prompt and execute the script by typing `powershell .\unzip.ps1` on the prompt.
 
 If you don't provide the required parameters, a help screen will be displayed:
 
@@ -35,12 +36,13 @@ Be careful, this script can be destructive: will overwrite files during the unzi
 
 At the end, all .zip files are uncompressed and removed
 
-Usage: unzip [-help] [-delete] [-force] [-folder <foldername>]
+Usage: unzip [-help] [-delete] [-force] [-folder <foldername>] [-log <filename>]
 
  -help      Show this screen
  -delete    Delete the archive once uncompressed
  -force     Don't ask for confirmation, run the script
  -folder    Name of the folder to process
+ -log       Name of a logfile where to keep track of which files were processed (append mode)
 ```
 
 The only required parameter is the parameter `-folder`. You need to specify there an existing folder name, the one where you've zip files.
@@ -74,6 +76,16 @@ All archives have been extracted
 ```
 
 A progress bar will be displayed as the decompression progresses.
+
+### Password protected file
+
+Using the native Windows uncompress method, it seems to be impossible to get an exit code i.e. does the uncompress action has succeeded or not.
+
+When a ZIP is password protected, the file will be skipped and no error will trigger as soon as the `FOF_NOERRORUI` flag has been used. That flag is meanwhile used in the source to make the tool working in a cron task (*every night, uncompress files in a given folder f.i.*).
+
+By looking at the logfile, you'll then see that the password zip has been retrieved and processed but you can't see if the unzip has work or not.
+
+So, in conclusion, **no protected file will be unzipped by this tool**, they'll be ignored without any notification.
 
 ### Tips
 
