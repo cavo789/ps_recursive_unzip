@@ -189,7 +189,12 @@ begin {
             # And now remove the zip file
             if ($delete) {
                 Write-Host " (archive delete)" -ForegroundColor darkGray
-                Remove-Item $zipFile.Fullname
+                try {
+                    Remove-Item $zipFile.Fullname -ErrorAction Stop
+                } catch {
+                   LogWrite "Unable to delete $($zipFile.Fullname)" "ERROR"
+                   Write-Host $_.Exception.Message
+                }
             } else {
                 Write-Host ""
             }
